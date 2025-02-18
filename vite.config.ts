@@ -9,7 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Ваше приложение',
+        name: 'ТехКадет',
         short_name: 'Приложение',
         description: 'Описание вашего приложения',
         theme_color: '#ffffff',

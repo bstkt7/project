@@ -1,9 +1,39 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { TicketForm } from '../components/TicketForm';
 import { RecentTickets } from '../components/RecentTickets';
 import { UsefulLinks } from '../components/UsefulLinks';
 
 export function HomePage() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      console.log('beforeinstallprompt event fired');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the A2HS prompt');
+        } else {
+          console.log('User dismissed the A2HS prompt');
+        }
+        setDeferredPrompt(null);
+      });
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Добро пожаловать на главную страницу!</h1>
@@ -28,6 +58,18 @@ export function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Кнопка установки PWA */}
+      {deferredPrompt && (
+        <div className="mt-6">
+          <button
+            onClick={handleInstallClick}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Установить приложение
+          </button>
+        </div>
+      )}
     </div>
   );
 } 

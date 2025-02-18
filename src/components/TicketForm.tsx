@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Send } from 'lucide-react';
 import { sendToTelegram } from '../utils/telegram';
+import { toast } from 'react-toastify';
 
 export function TicketForm() {
   const [title, setTitle] = useState('');
@@ -19,6 +20,15 @@ export function TicketForm() {
         setTitle('');
         setDescription('');
         
+        // Отправка уведомления
+        if (Notification.permission === 'granted') {
+          new Notification('Тикет успешно создан!', {
+            body: `Тикет "${title}" был успешно отправлен.`,
+          });
+        }
+
+        toast.success(`Тикет "${title}" был успешно отправлен!`);
+
         // Reset success message after 3 seconds
         setTimeout(() => {
           setStatus('idle');

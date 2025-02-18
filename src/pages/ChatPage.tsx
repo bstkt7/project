@@ -31,6 +31,7 @@ export function ChatPage() {
   const subscriptionRef = useRef<any>(null);
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(true);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -210,16 +211,14 @@ export function ChatPage() {
 
   // Добавим эффект для переподключения при потере соединения
   useEffect(() => {
-    let reconnectTimer: NodeJS.Timeout;
-
-    const handleVisibilityChange = () => {
+    let handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && isAuthenticated) {
         fetchMessages();
         setupSubscription();
       }
     };
 
-    const handleOnline = () => {
+    let handleOnline = () => {
       if (isAuthenticated) {
         fetchMessages();
         setupSubscription();
@@ -232,7 +231,7 @@ export function ChatPage() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     };
   }, [isAuthenticated]);
 

@@ -7,6 +7,18 @@ export function HomePage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
+    // Запрос разрешения на уведомления
+    const requestNotificationPermission = async () => {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        console.log('Уведомления разрешены');
+      } else {
+        console.log('Уведомления отклонены');
+      }
+    };
+
+    requestNotificationPermission();
+
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -60,16 +72,31 @@ export function HomePage() {
       </div>
 
       {/* Кнопка установки PWA */}
-      {deferredPrompt && (
-        <div className="mt-6">
-          <button
-            onClick={handleInstallClick}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            Установить приложение
-          </button>
-        </div>
-      )}
+      <div className="mt-6">
+        <button
+          onClick={handleInstallClick}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Установить приложение
+        </button>
+      </div>
+
+      {/* Раздел Графика */}
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold mb-4">Графика</h2>
+        <ul className="list-disc pl-5">
+          <li>
+            <a href="/files/logo.svg" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              logo.svg
+            </a>
+          </li>
+          <li>
+            <a href="/files/logo.png" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              logo.png
+            </a>
+          </li>
+        </ul>
+      </div>
     </div>
   );
 } 

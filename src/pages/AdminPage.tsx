@@ -7,7 +7,9 @@ import { supabase } from '../utils/supabase';
 import 'react-calendar/dist/Calendar.css';
 import type { ChangeEvent, FormEvent } from 'react';
 import type { Value } from 'react-calendar';
-import { NotificationForm } from '../components/NotificationForm';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { TicketForm } from '../components/TicketForm';
 
 interface CalendarTileProperties {
   date: Date;
@@ -59,7 +61,8 @@ interface AdminTicket {
 }
 
 export function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, isAuthenticated } = useAuth();
+  const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
   const [password, setPassword] = useState('');
   const [notes, setNotes] = useState<Note[]>([]);
   const [isAddingNote, setIsAddingNote] = useState(false);
@@ -90,6 +93,7 @@ export function AdminPage() {
   const [tonerChangeDates, setTonerChangeDates] = useState<Record<string, Date[]>>({});
   const [tickets, setTickets] = useState<AdminTicket[]>([]);
   const [newComment, setNewComment] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -199,7 +203,7 @@ export function AdminPage() {
   const handleLogin = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (password === '12qwaszx') {
-      setIsAuthenticated(true);
+      setIsAuthenticatedLocal(true);
       setError('');
     } else {
       setError('Неверный пароль');
@@ -514,35 +518,8 @@ export function AdminPage() {
     ) : null;
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-center mb-6">
-              <Lock className="text-blue-600 w-12 h-12" />
-            </div>
-            <h1 className="text-2xl font-bold text-center mb-6">Вход в панель администратора</h1>
-            <form onSubmit={handleLogin}>
-              <input
-                type="password"
-                value={password}
-                onChange={handlePasswordChange}
-                placeholder="Введите пароль"
-                className="w-full px-4 py-2 rounded border focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-              {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-              <button
-                type="submit"
-                className="w-full mt-4 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors"
-              >
-                Войти
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
+  if (!isAuthenticated || (user.email !== 'bstkt7@gmail.com')) {
+    return <Navigate to="/auth" replace />;
   }
 
   return (
@@ -1184,10 +1161,7 @@ export function AdminPage() {
           )}
         </div>
       </div>
-      <div className="bg-white  rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Отправка уведомлений</h2>
-        <NotificationForm />
-      </div>
+      <TicketForm />
     </div>
   );
 }

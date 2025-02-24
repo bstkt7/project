@@ -57,8 +57,6 @@ export function TicketsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Добро пожаловать на главную страницу!</h1>
-      <p className="mt-4">Здесь вы можете найти информацию о тикетах, FAQ и чате.</p>
 
       <div className="grid md:grid-cols-3 gap-8 mt-8">
         <div className="md:col-span-2 space-y-8">

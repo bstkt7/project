@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Settings, HelpCircle, User } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Settings, HelpCircle, } from 'lucide-react';
 
 export function Navbar() {
 
@@ -9,10 +8,15 @@ export function Navbar() {
     <nav className="bg-white shadow w-full">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16 flex-wrap">
-          <div className="flex items-center">
+          <div className="flex items-center gap-5">
             <Link to="/" className="text-xl font-bold text-gray-800">
-              Техподдержка ГККШИ
+              Техподдержка   
             </Link>
+            <img 
+              src="https://shkolainternatkurtamyshskaya-r45.gosweb.gosuslugi.ru/netcat_files/27/2724/gerb.png" 
+              alt="Герб школы" 
+              className="h-8 w-auto" 
+            />
           </div>
 
           <div className="flex items-center gap-4 flex-wrap">

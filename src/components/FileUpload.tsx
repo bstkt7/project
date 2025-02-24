@@ -1,6 +1,6 @@
 // FileUpload.tsx
 import React, { useState, useCallback } from 'react';
-import { Upload, FileUp, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Upload, FileUp, CheckCircle, XCircle, Loader2, Link as LinkIcon } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 
 interface UploadedFile {
@@ -17,6 +17,8 @@ interface YandexDiskUploadResponse {
 }
 
 const YANDEX_TOKEN = "y0__xDF1u-PARjblgMg24y4khIlBeidpFbnhxA4Vw55vy3IvfvjPQ";
+const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200 MB in bytes
+const EXCHANGE_FOLDER_LINK = "https://disk.yandex.ru/d/TuKEPLqb0BtphQ";
 
 export function FileUpload() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -47,6 +49,13 @@ export function FileUpload() {
       return;
     }
 
+    if (file.size > MAX_FILE_SIZE) {
+      setFiles(prev => prev.map((f, i) => 
+        i === index ? { ...f, status: 'error', error: 'Файл превышает 200 МБ' } : f
+      ));
+      return;
+    }
+
     try {
       await fetch('https://cloud-api.yandex.net/v1/disk/resources?path=Обмен', {
         method: 'PUT',
@@ -59,6 +68,10 @@ export function FileUpload() {
           headers: { Authorization: `OAuth ${YANDEX_TOKEN}` }
         }
       );
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to get upload URL');
+      }
 
       const uploadData: YandexDiskUploadResponse = await uploadResponse.json();
 
@@ -87,7 +100,7 @@ export function FileUpload() {
     }
   };
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: File[]) => {
     const newFiles = acceptedFiles.map(file => ({
       name: file.name,
       size: file.size,
@@ -95,7 +108,19 @@ export function FileUpload() {
       status: 'pending' as const,
       progress: 0
     }));
-    setFiles(prev => [...prev, ...newFiles]);
+
+    const rejected = rejectedFiles.map(file => ({
+      name: file.file.name,
+      size: file.file.size,
+      type: file.file.type,
+      status: 'error' as const,
+      progress: 0,
+      error: file.errors.some(err => err.code === 'file-too-large') 
+        ? 'Файл превышает 200 МБ' 
+        : 'Неподдерживаемый формат'
+    }));
+
+    setFiles(prev => [...prev, ...newFiles, ...rejected]);
     acceptedFiles.forEach((file, index) => uploadFile(file, files.length + index));
   }, [files.length]);
 
@@ -105,8 +130,10 @@ export function FileUpload() {
       'application/pdf': ['.pdf'],
       'image/*': ['.png', '.jpg', '.jpeg'],
       'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
-    }
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'video/*': ['.mp4', '.mov', '.avi']
+    },
+    maxSize: MAX_FILE_SIZE,
   });
 
   const getStatusIcon = (status: UploadedFile['status']) => {
@@ -117,6 +144,8 @@ export function FileUpload() {
       default: return <FileUp className="w-5 h-5 text-gray-500" />;
     }
   };
+
+  const hasSuccessfulUpload = files.some(file => file.status === 'success');
 
   if (isYandexAuthorized === null) {
     return (
@@ -131,7 +160,8 @@ export function FileUpload() {
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-semibold mb-4">Загрузка файлов в Обмен</h2>
+      <h2 className="flex text-xl font-semibold mb-4">Загрузка файлов в Обмен</h2>      
+
       
       {isYandexAuthorized === false ? (
         <div className="bg-red-50 p-4 rounded-lg">
@@ -147,7 +177,7 @@ export function FileUpload() {
             <input {...getInputProps()} />
             <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
             <p className="text-gray-600">Перетащите файлы сюда или кликните для выбора</p>
-            <p className="text-sm text-gray-500 mt-2">PDF, PNG, JPG, DOC, DOCX</p>
+            <p className="text-sm text-gray-500 mt-2">PDF, PNG, JPG, DOC, DOCX, MP4, MOV, AVI (макс. 200 МБ)</p>
           </div>
 
           {files.length > 0 && (
@@ -181,6 +211,19 @@ export function FileUpload() {
               ))}
             </div>
           )}
+
+
+            <div className="mt-4 p-3 bg-green-50 rounded-lg flex items-center gap-2">
+              <LinkIcon className="w-5 h-5 text-green-600" />
+              <a
+                href={EXCHANGE_FOLDER_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-green-600 hover:underline"
+              >
+                Перейти к папке Обмен на Яндекс.Диске
+              </a>
+            </div>
         </>
       )}
     </div>

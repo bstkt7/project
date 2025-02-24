@@ -1,5 +1,5 @@
-import React, { useReducer, useEffect, useCallback, useMemo } from 'react';
-import { Lock, Save, X, Edit2, ChevronDown, ChevronUp, Link as LinkIcon, Trash2, Printer, Calendar as CalendarIcon, StickyNote, HelpCircle, CheckCircle, Loader2 } from 'lucide-react';
+import React, { useReducer, useEffect, useCallback, useMemo, useState } from 'react';
+import { Lock, Save, X, Edit2, ChevronDown, ChevronUp, Link as LinkIcon, Trash2, Printer, Calendar as CalendarIcon, StickyNote, HelpCircle, CheckCircle, Loader2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import Calendar from 'react-calendar';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -51,12 +51,11 @@ interface AdminTicket {
   comments: TicketComment[];
 }
 
-// Состояние и действия для reducer
 interface State {
   isAuthenticated: boolean;
   password: string;
   error: string;
-  activeTab: 'notes' | 'links' | 'faq' | 'printers' | 'tickets';
+  activeTab: 'notes' | 'links' | 'faq' | 'printers' | 'tickets' | 'calendar';
   notes: Note[];
   links: Link[];
   faqItems: FaqItem[];
@@ -64,7 +63,7 @@ interface State {
   tickets: AdminTicket[];
   tonerChangeDates: Record<string, Date[]>;
   modal: {
-    type: 'note' | 'link' | 'faq' | 'printer' | 'printers' | null;
+    type: 'note' | 'link' | 'faq' | 'printer' | null;
     mode: 'add' | 'edit';
     data: any;
   } | null;
@@ -72,6 +71,7 @@ interface State {
   expandedNotes: string[];
   selectedPrinter: string | null;
   newComment: Record<string, string>;
+  currentPage: number;
 }
 
 type Action =
@@ -90,7 +90,8 @@ type Action =
   | { type: 'SET_EXPANDED_NOTES'; payload: string[] }
   | { type: 'SET_SELECTED_PRINTER'; payload: string | null }
   | { type: 'SET_NEW_COMMENT'; payload: Record<string, string> }
-  | { type: 'UPDATE_MODAL_DATA'; payload: any };
+  | { type: 'UPDATE_MODAL_DATA'; payload: any }
+  | { type: 'SET_CURRENT_PAGE'; payload: number };
 
 const initialState: State = {
   isAuthenticated: false,
@@ -108,6 +109,7 @@ const initialState: State = {
   expandedNotes: [],
   selectedPrinter: null,
   newComment: {},
+  currentPage: 1,
 };
 
 const reducer = (state: State, action: Action): State => {
@@ -134,14 +136,17 @@ const reducer = (state: State, action: Action): State => {
       ...state,
       modal: state.modal ? { ...state.modal, data: action.payload } : null
     };
+    case 'SET_CURRENT_PAGE': return { ...state, currentPage: action.payload };
     default: return state;
   }
 };
 
 export function AdminPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
+  const [popupPosition, setPopupPosition] = useState<{ x: number; y: number } | null>(null);
+  const ticketsPerPage = 10;
 
-  // Fetch data for all tabs
   const fetchData = useCallback(async (table: string, setter: string, orderBy: string) => {
     dispatch({ type: 'SET_LOADING', payload: { key: table, value: true } });
     const { data, error } = await supabase
@@ -238,13 +243,16 @@ export function AdminPage() {
       printer: 'printers'
     };
 
-    dispatch({ type: 'SET_MODAL', payload: null });
-
-    if (type !== null) {
-      fetchData(tableMap[type], `SET_${type.toUpperCase()}S`, type === 'note' ? 'created_at' : type === 'faq' ? 'order' : 'created_at');
-    } else {
-      console.error('Type is null, cannot fetch data.');
+    if (mode === 'add') {
+      const { error } = await supabase.from(tableMap[type]).insert([data]);
+      if (error) console.error(`Error adding ${type}:`, error);
+    } else if (mode === 'edit') {
+      const { error } = await supabase.from(tableMap[type]).update(data).eq('id', data.id);
+      if (error) console.error(`Error updating ${type}:`, error);
     }
+
+    dispatch({ type: 'SET_MODAL', payload: null });
+    fetchData(tableMap[type], `SET_${type.toUpperCase()}S`, type === 'note' ? 'created_at' : type === 'faq' ? 'order' : 'created_at');
   }, [state.modal, fetchData]);
 
   const handleTonerChange = useCallback(async (printerId: string, date: Date) => {
@@ -267,11 +275,40 @@ export function AdminPage() {
     }
   }, [state.tonerChangeDates, fetchData]);
 
+  const handleAddComment = async (ticketId: string) => {
+    const commentContent = state.newComment[ticketId];
+    if (!commentContent?.trim()) return;
+
+    const { error } = await supabase
+      .from('ticket_comments')
+      .insert([{ ticket_id: ticketId, content: commentContent }]);
+
+    if (error) {
+      console.error('Error adding comment:', error);
+    } else {
+      dispatch({ type: 'SET_NEW_COMMENT', payload: { ...state.newComment, [ticketId]: '' } });
+      fetchTickets();
+    }
+  };
+
+  const totalPages = Math.ceil(state.tickets.length / ticketsPerPage);
+  const paginatedTickets = state.tickets.slice(
+    (state.currentPage - 1) * ticketsPerPage,
+    state.currentPage * ticketsPerPage
+  );
+
   const renderTabContent = useMemo(() => {
     switch (state.activeTab) {
       case 'notes':
         return (
           <div className="space-y-4">
+            <button
+              onClick={() => dispatch({ type: 'SET_MODAL', payload: { type: 'note', mode: 'add', data: { title: '', content: '' } } })}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              <Plus size={20} />
+              Добавить заметку
+            </button>
             {state.loading.admin_notes && <Loader2 className="animate-spin" />}
             {state.notes.map((note) => (
               <div key={note.id} className="border rounded-lg p-4">
@@ -315,87 +352,16 @@ export function AdminPage() {
             ))}
           </div>
         );
-      case 'tickets':
-        return (
-          <div className="space-y-6">
-            {state.loading.tickets && <Loader2 className="animate-spin" />}
-            {state.tickets.map((ticket) => (
-              <div key={ticket.id} className="border rounded-lg p-4">
-                <div className="flex justify-between items-start">
-                  <h3 className="text-lg font-semibold">{ticket.title}</h3>
-                  <button
-                    onClick={async () => {
-                      const newStatus = ticket.status === 'completed' ? 'pending' : 'completed';
-                      await supabase.from('tickets').update({ status: newStatus }).eq('id', ticket.id);
-                      fetchTickets();
-                    }}
-                    className={`flex items-center gap-2 px-3 py-1 rounded-full ${
-                      ticket.status === 'completed'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    <CheckCircle size={18} />
-                    {ticket.status === 'completed' ? 'Выполнено' : 'Отметить выполненным'}
-                  </button>
-                </div>
-                <p className="text-gray-600 whitespace-pre-line">{ticket.description}</p>
-                <p className="text-gray-400 text-sm mt-2">
-                  Создан: {new Date(ticket.created_at).toLocaleDateString('ru-RU', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-                {ticket.comments.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    <h4 className="font-medium">Комментарии:</h4>
-                    {ticket.comments.map((comment) => (
-                      <div key={comment.id} className="bg-gray-50 rounded p-3">
-                        <p className="text-gray-700">{comment.content}</p>
-                        <p className="text-gray-400 text-sm mt-1">
-                          {new Date(comment.created_at).toLocaleDateString('ru-RU', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-4">
-                  <input
-                    type="text"
-                    value={state.newComment[ticket.id] || ''}
-                    onChange={(e) => dispatch({
-                      type: 'SET_NEW_COMMENT',
-                      payload: { ...state.newComment, [ticket.id]: e.target.value }
-                    })}
-                    placeholder="Добавить комментарий"
-                    className="w-full px-4 py-2 rounded border"
-                  />
-                  <button
-                    onClick={() => {
-                      if (!state.newComment[ticket.id]?.trim()) return;
-                      handleAddComment(ticket.id);
-                    }}
-                    className="mt-2 bg-blue-600 text-white px-4 py-2 rounded"
-                  >
-                    Добавить
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
       case 'links':
         return (
           <div className="space-y-4">
+            <button
+              onClick={() => dispatch({ type: 'SET_MODAL', payload: { type: 'link', mode: 'add', data: { title: '', url: '' } } })}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              <Plus size={20} />
+              Добавить ссылку
+            </button>
             {state.loading.useful_links && <Loader2 className="animate-spin" />}
             {state.links.map((link) => (
               <div key={link.id} className="border rounded-lg p-4">
@@ -424,6 +390,13 @@ export function AdminPage() {
       case 'faq':
         return (
           <div className="space-y-4">
+            <button
+              onClick={() => dispatch({ type: 'SET_MODAL', payload: { type: 'faq', mode: 'add', data: { question: '', answer: '', order: state.faqItems.length } } })}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              <Plus size={20} />
+              Добавить FAQ
+            </button>
             {state.loading.faq_items && <Loader2 className="animate-spin" />}
             {state.faqItems.map((faq) => (
               <div key={faq.id} className="border rounded-lg p-4">
@@ -453,6 +426,13 @@ export function AdminPage() {
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
+              <button
+                onClick={() => dispatch({ type: 'SET_MODAL', payload: { type: 'printer', mode: 'add', data: { model: '', location: '', toner_model: '', cartridge_model: '', last_toner_change: new Date().toISOString() } } })}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                <Plus size={20} />
+                Добавить принтер
+              </button>
               {state.loading.printers && <Loader2 className="animate-spin" />}
               {state.printers.map((printer) => (
                 <div
@@ -526,26 +506,147 @@ export function AdminPage() {
             )}
           </div>
         );
+      case 'tickets':
+        return (
+          <div className="space-y-6">
+            {state.loading.tickets && <Loader2 className="animate-spin" />}
+            {paginatedTickets.map((ticket) => (
+              <div key={ticket.id} className="border rounded-lg p-4">
+                <div className="flex justify-between items-start">
+                  <h3 className="text-lg font-semibold">{ticket.title}</h3>
+                  <button
+                    onClick={async () => {
+                      const newStatus = ticket.status === 'completed' ? 'pending' : 'completed';
+                      await supabase.from('tickets').update({ status: newStatus }).eq('id', ticket.id);
+                      fetchTickets();
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+                      ticket.status === 'completed'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    <CheckCircle size={18} />
+                    {ticket.status === 'completed' ? 'Выполнено' : 'Отметить выполненным'}
+                  </button>
+                </div>
+                <p className="text-gray-600 whitespace-pre-line">{ticket.description}</p>
+                <p className="text-gray-400 text-sm mt-2">
+                  Создан: {new Date(ticket.created_at).toLocaleDateString('ru-RU', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+                {ticket.comments.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    <h4 className="font-medium">Комментарии:</h4>
+                    {ticket.comments.map((comment) => (
+                      <div key={comment.id} className="bg-gray-50 rounded p-3">
+                        <p className="text-gray-700">{comment.content}</p>
+                        <p className="text-gray-400 text-sm mt-1">
+                          {new Date(comment.created_at).toLocaleDateString('ru-RU', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4">
+                  <input
+                    type="text"
+                    value={state.newComment[ticket.id] || ''}
+                    onChange={(e) => dispatch({
+                      type: 'SET_NEW_COMMENT',
+                      payload: { ...state.newComment, [ticket.id]: e.target.value }
+                    })}
+                    placeholder="Добавить комментарий"
+                    className="w-full px-4 py-2 rounded border"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!state.newComment[ticket.id]?.trim()) return;
+                      handleAddComment(ticket.id);
+                    }}
+                    className="mt-2 bg-blue-600 text-white px-4 py-2 rounded"
+                  >
+                    Добавить
+                  </button>
+                </div>
+              </div>
+            ))}
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center mt-4">
+                <button
+                  onClick={() => dispatch({ type: 'SET_CURRENT_PAGE', payload: state.currentPage - 1 })}
+                  disabled={state.currentPage === 1}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+                >
+                  <ChevronLeft size={20} />
+                  Предыдущая
+                </button>
+                <span>Страница {state.currentPage} из {totalPages}</span>
+                <button
+                  onClick={() => dispatch({ type: 'SET_CURRENT_PAGE', payload: state.currentPage + 1 })}
+                  disabled={state.currentPage === totalPages}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+                >
+                  Следующая
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            )}
+          </div>
+        );
+        case 'calendar':
+          return (
+            <div className="space-y-4">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border p-2 text-left">Дата</th>
+                    <th className="border p-2 text-left">Тема</th>
+                    <th className="border p-2 text-left">Описание</th>
+                    <th className="border p-2 text-left">Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.tickets.map((ticket) => (
+                    <tr key={ticket.id} className="hover:bg-gray-50">
+                      <td className="border p-2">
+                        {new Date(ticket.created_at).toLocaleDateString('ru-RU', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </td>
+                      <td className="border p-2">{ticket.title}</td>
+                      <td className="border p-2">{ticket.description}</td>
+                      <td className="border p-2">
+                        {ticket.status === 'completed' ? 'Выполнено' : 'В ожидании'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {state.tickets.length === 0 && (
+                <p className="text-gray-500 text-center">Нет заявок</p>
+              )}
+            </div>
+          );
       default:
         return null;
     }
-  }, [state, fetchData, fetchTickets, handleDelete, handleTonerChange]);
-
-  const handleAddComment = async (ticketId: string) => {
-    const commentContent = state.newComment[ticketId];
-    if (!commentContent?.trim()) return;
-
-    const { error } = await supabase
-      .from('ticket_comments')
-      .insert([{ ticket_id: ticketId, content: commentContent }]);
-
-    if (error) {
-      console.error('Error adding comment:', error);
-    } else {
-      dispatch({ type: 'SET_NEW_COMMENT', payload: { ...state.newComment, [ticketId]: '' } });
-      fetchTickets();
-    }
-  };
+  }, [state, fetchData, fetchTickets, handleDelete, handleTonerChange, handleAddComment, paginatedTickets, totalPages, hoveredDate, popupPosition]);
 
   if (!state.isAuthenticated) {
     return (
@@ -579,39 +680,9 @@ export function AdminPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-6 flex flex-wrap gap-2">
-          {(['notes', 'links', 'faq', 'printers'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => dispatch({
-                type: 'SET_MODAL',
-                payload: {
-                  type: tab,
-                  mode: 'add',
-                  data: tab === 'notes' ? { title: '', content: '' } :
-                        tab === 'links' ? { title: '', url: '' } :
-                        tab === 'faq' ? { question: '', answer: '', order: state.faqItems.length } :
-                        { model: '', location: '', toner_model: '', cartridge_model: '', last_toner_change: new Date().toISOString() }
-                }
-              })}
-              className={`flex items-center gap-2 px-4 py-2 rounded ${
-                state.activeTab === tab ? 'bg-blue-600 text-white' : 'bg-gray-200'
-              }`}
-            >
-              {tab === 'notes' && <StickyNote size={20} />}
-              {tab === 'links' && <LinkIcon size={20} />}
-              {tab === 'faq' && <HelpCircle size={20} />}
-              {tab === 'printers' && <Printer size={20} />}
-              <span className="hidden sm:inline">
-                {tab === 'notes' ? 'Заметка' : tab === 'links' ? 'Ссылка' : tab === 'faq' ? 'FAQ' : 'Принтер'}
-              </span>
-            </button>
-          ))}
-        </div>
-
         <div className="mb-0 overflow-x-auto border-b">
           <div className="flex gap-2 min-w-max">
-            {(['notes', 'links', 'faq', 'printers', 'tickets'] as const).map(tab => (
+            {(['notes', 'links', 'faq', 'printers', 'tickets', 'calendar'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => dispatch({ type: 'SET_ACTIVE_TAB', payload: tab })}
@@ -624,7 +695,8 @@ export function AdminPage() {
                 {tab === 'notes' ? 'Заметки' :
                  tab === 'links' ? 'Ссылки' :
                  tab === 'faq' ? 'FAQ' :
-                 tab === 'printers' ? 'Принтеры' : 'Тикеты'}
+                 tab === 'printers' ? 'Принтеры' :
+                 tab === 'tickets' ? 'Тикеты' : 'Календарь'}
               </button>
             ))}
           </div>

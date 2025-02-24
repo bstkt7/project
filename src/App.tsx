@@ -1,26 +1,46 @@
-import React from 'react';
+// App.tsx
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import { Navbar } from './components/Navbar';
-import { Auth } from './components/Auth';
-import { HomePage } from './pages/HomePage';
+import { Header } from './components/Header';
+import { Footer } from './components/Footer';
+import { TicketsPage } from './pages/TicketsPage';
+import { FaqPage } from './pages/FaqPage';
 import { AdminPage } from './pages/AdminPage';
-import { ProfilePage } from './pages/ProfilePage';
+
+import { Navbar } from './components/Navbar';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
+  useEffect(() => {
+    const requestNotificationPermission = async () => {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        console.log('Уведомления разрешены');
+      } else {
+        console.log('Уведомления отклонены');
+      }
+    };
+
+    requestNotificationPermission();
+  }, []);
+
   return (
-    <AuthProvider>
-      <Router>
+    <Router basename="/">
+      <div className="min-h-screen bg-gray-100 flex flex-col">
         <Navbar />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+        <main className="flex-1">
+          <Routes>
+            <Route path="/" element={<TicketsPage />} />
+            <Route path="/faq" element={<FaqPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+        <Footer />
+        <ToastContainer />
+      </div>
+    </Router>
   );
 }
 

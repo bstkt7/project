@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Lock, Plus, Save, X, Edit2, ChevronDown, ChevronUp, Link as LinkIcon, Trash2, Printer, Calendar as CalendarIcon, Ticket, StickyNote, HelpCircle, CheckCircle } from 'lucide-react';
+import React, { useReducer, useEffect, useCallback, useMemo } from 'react';
+import { Lock, Save, X, Edit2, ChevronDown, ChevronUp, Link as LinkIcon, Trash2, Printer, Calendar as CalendarIcon, StickyNote, HelpCircle, CheckCircle, Loader2 } from 'lucide-react';
 import Calendar from 'react-calendar';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -64,7 +64,7 @@ interface State {
   tickets: AdminTicket[];
   tonerChangeDates: Record<string, Date[]>;
   modal: {
-    type: 'note' | 'link' | 'faq' | 'printer' | null;
+    type: 'note' | 'link' | 'faq' | 'printer' | 'printers' | null;
     mode: 'add' | 'edit';
     data: any;
   } | null;
@@ -141,22 +141,24 @@ const reducer = (state: State, action: Action): State => {
 export function AdminPage() {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  // Fetch data for all tabs
   const fetchData = useCallback(async (table: string, setter: string, orderBy: string) => {
     dispatch({ type: 'SET_LOADING', payload: { key: table, value: true } });
     const { data, error } = await supabase
-      .from('printers')
+      .from(table)
       .select('*')
-      .order('model', { ascending: true });
+      .order(orderBy, { ascending: table !== 'admin_notes' });
 
     if (error) {
-      console.error('Error fetching printers:', error);
-      return;
+      console.error(`Error fetching ${table}:`, error);
+    } else {
+      dispatch({ type: setter as any, payload: data || [] });
     }
+    dispatch({ type: 'SET_LOADING', payload: { key: table, value: false } });
+  }, []);
 
-    setPrinters(data || []);
-  };
-
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', payload: { key: 'tickets', value: true } });
     const { data: ticketsData, error: ticketsError } = await supabase
       .from('tickets')
       .select('*')
@@ -177,228 +179,79 @@ export function AdminPage() {
       );
       dispatch({ type: 'SET_TICKETS', payload: ticketsWithComments });
     }
-  };
+    dispatch({ type: 'SET_LOADING', payload: { key: 'tickets', value: false } });
+  }, []);
 
-  const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setPassword(e.target.value);
-  };
-
-  const handleNoteContentChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setNewNote(prev => ({ ...prev, content: e.target.value }));
-  };
-
-  const handleNoteTitleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setNewNote(prev => ({ ...prev, title: e.target.value }));
-  };
-
-  const handleAddNote = async () => {
-    if (!newNote.title.trim() || !newNote.content.trim()) {
-      return;
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      fetchData('admin_notes', 'SET_NOTES', 'created_at');
+      fetchData('useful_links', 'SET_LINKS', 'created_at');
+      fetchData('faq_items', 'SET_FAQ_ITEMS', 'order');
+      fetchData('printers', 'SET_PRINTERS', 'model');
+      fetchTickets();
     }
+  }, [state.isAuthenticated, fetchData, fetchTickets]);
+
+  useEffect(() => {
+    if (state.printers.length > 0) {
+      const dates: Record<string, Date[]> = {};
+      state.printers.forEach(printer => {
+        dates[printer.id] = [new Date(printer.last_toner_change)];
+      });
+      dispatch({ type: 'SET_TONER_DATES', payload: dates });
+    }
+  }, [state.printers]);
+
+  const handleLogin = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (state.password === '12qwaszx') {
+      dispatch({ type: 'SET_AUTHENTICATED', payload: true });
+      dispatch({ type: 'SET_ERROR', payload: '' });
+    } else {
+      dispatch({ type: 'SET_ERROR', payload: 'Неверный пароль' });
+    }
+  }, [state.password]);
+
+  const handleDelete = useCallback(async (table: string, id: string, fetchFn: () => void) => {
+    if (!confirm('Вы уверены, что хотите удалить этот элемент?')) return;
 
     const { error } = await supabase
-      .from('admin_notes')
-      .insert([{
-        title: newNote.title,
-        content: newNote.content
-      }]);
-
-    if (error) {
-      console.error('Error adding note:', error);
-      return;
-    }
-
-    setNewNote({ title: '', content: '' });
-    setIsAddingNote(false);
-    fetchNotes();
-  };
-
-  const handleAddLink = async () => {
-    if (!newLink.title.trim() || !newLink.url.trim()) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from('useful_links')
-      .insert([newLink]);
-
-    if (error) {
-      console.error('Error adding link:', error);
-      return;
-    }
-
-    setNewLink({ title: '', url: '' });
-    setIsAddingLink(false);
-    fetchLinks();
-  };
-
-  const handleAddFaq = async () => {
-    if (!newFaq.question.trim() || !newFaq.answer.trim()) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from('faq_items')
-      .insert([{
-        question: newFaq.question,
-        answer: newFaq.answer,
-        order: faqItems.length
-      }]);
-
-    if (error) {
-      console.error('Error adding FAQ item:', error);
-      return;
-    }
-
-    setNewFaq({ question: '', answer: '' });
-    setIsAddingFaq(false);
-    fetchFaqItems();
-  };
-
-  const handleAddPrinter = async () => {
-    if (!newPrinter.model.trim() || !newPrinter.location.trim()) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from('printers')
-      .insert([newPrinter]);
-
-    if (error) {
-      console.error('Error adding printer:', error);
-      return;
-    }
-
-    setNewPrinter({
-      model: '',
-      location: '',
-      toner_model: '',
-      cartridge_model: '',
-      last_toner_change: new Date().toISOString().split('T')[0]
-    });
-    setIsAddingPrinter(false);
-    fetchPrinters();
-  };
-
-  const handleAddComment = async (ticketId: string) => {
-    const commentContent = newComment[ticketId];
-    if (!commentContent?.trim()) return;
-
-    const { error: commentError } = await supabase
-      .from('ticket_comments')
-      .insert([{
-        ticket_id: ticketId,
-        content: commentContent
-      }]);
-
-    if (commentError) {
-      console.error('Error adding comment:', commentError);
-      return;
-    }
-
-    setNewComment(prev => ({ ...prev, [ticketId]: '' }));
-    fetchTickets();
-  };
-
-  const handleUpdateNote = async (id: string) => {
-    const noteToUpdate = notes.find(note => note.id === id);
-    if (!noteToUpdate) return;
-
-    const { error } = await supabase
-      .from('admin_notes')
-      .update({
-        title: noteToUpdate.title,
-        content: noteToUpdate.content
-      })
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error updating note:', error);
-      return;
-    }
-
-    setEditingNote(null);
-    fetchNotes();
-  };
-
-  const handleUpdateLink = async (id: string) => {
-    const linkToUpdate = links.find(link => link.id === id);
-    if (!linkToUpdate) return;
-
-    const { error } = await supabase
-      .from('useful_links')
-      .update({
-        title: linkToUpdate.title,
-        url: linkToUpdate.url
-      })
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error updating link:', error);
-      return;
-    }
-
-    setEditingLink(null);
-    fetchLinks();
-  };
-
-  const handleDeleteLink = async (id: string) => {
-    const { error } = await supabase
-      .from('useful_links')
+      .from(table)
       .delete()
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting link:', error);
-      return;
+      console.error(`Error deleting from ${table}:`, error);
+    } else {
+      fetchFn();
     }
+  }, []);
 
-    fetchLinks();
-  };
+  const handleSave = useCallback(async () => {
+    if (!state.modal) return;
 
-  const handleUpdateFaq = async (id: string) => {
-    const faqToUpdate = faqItems.find(faq => faq.id === id);
-    if (!faqToUpdate) return;
+    const { type, mode, data } = state.modal;
+    const tableMap = {
+      note: 'admin_notes',
+      link: 'useful_links',
+      faq: 'faq_items',
+      printer: 'printers'
+    };
 
-    const { error } = await supabase
-      .from('faq_items')
-      .update({
-        question: faqToUpdate.question,
-        answer: faqToUpdate.answer
-      })
-      .eq('id', id);
+    dispatch({ type: 'SET_MODAL', payload: null });
 
-    if (error) {
-      console.error('Error updating FAQ item:', error);
-      return;
+    if (type !== null) {
+      fetchData(tableMap[type], `SET_${type.toUpperCase()}S`, type === 'note' ? 'created_at' : type === 'faq' ? 'order' : 'created_at');
+    } else {
+      console.error('Type is null, cannot fetch data.');
     }
+  }, [state.modal, fetchData]);
 
-    setEditingFaq(null);
-    fetchFaqItems();
-  };
-
-  const handleDeleteFaq = async (id: string) => {
-    const { error } = await supabase
-      .from('faq_items')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting FAQ item:', error);
-      return;
-    }
-
-    fetchFaqItems();
-  };
-
-  const handleUpdatePrinter = async (id: string) => {
-    const printerToUpdate = printers.find(printer => printer.id === id);
-    if (!printerToUpdate) return;
-
+  const handleTonerChange = useCallback(async (printerId: string, date: Date) => {
     const { error } = await supabase
       .from('printers')
-      .update(printerToUpdate)
-      .eq('id', id);
+      .update({ last_toner_change: date.toISOString() })
+      .eq('id', printerId);
 
     if (error) {
       console.error('Error updating toner change:', error);
@@ -527,17 +380,9 @@ export function AdminPage() {
                     className="w-full px-4 py-2 rounded border"
                   />
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       if (!state.newComment[ticket.id]?.trim()) return;
-                      await supabase.from('ticket_comments').insert({
-                        ticket_id: ticket.id,
-                        content: state.newComment[ticket.id]
-                      });
-                      dispatch({
-                        type: 'SET_NEW_COMMENT',
-                        payload: { ...state.newComment, [ticket.id]: '' }
-                      });
-                      fetchTickets();
+                      handleAddComment(ticket.id);
                     }}
                     className="mt-2 bg-blue-600 text-white px-4 py-2 rounded"
                   >
@@ -655,7 +500,7 @@ export function AdminPage() {
               <div className="border rounded-lg p-4">
                 <h3 className="text-lg font-semibold mb-4">История замены тонера</h3>
                 <Calendar
-                  locale={ru}
+                  locale="ru-RU"
                   value={null}
                   tileContent={({ date }) => {
                     const printerDates = state.tonerChangeDates[state.selectedPrinter!] || [];
@@ -685,6 +530,22 @@ export function AdminPage() {
         return null;
     }
   }, [state, fetchData, fetchTickets, handleDelete, handleTonerChange]);
+
+  const handleAddComment = async (ticketId: string) => {
+    const commentContent = state.newComment[ticketId];
+    if (!commentContent?.trim()) return;
+
+    const { error } = await supabase
+      .from('ticket_comments')
+      .insert([{ ticket_id: ticketId, content: commentContent }]);
+
+    if (error) {
+      console.error('Error adding comment:', error);
+    } else {
+      dispatch({ type: 'SET_NEW_COMMENT', payload: { ...state.newComment, [ticketId]: '' } });
+      fetchTickets();
+    }
+  };
 
   if (!state.isAuthenticated) {
     return (

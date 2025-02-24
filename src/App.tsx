@@ -1,47 +1,26 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Header } from './components/Header';
-import { Footer } from './components/Footer';
-import { TicketsPage } from './pages/TicketsPage';
-import { FaqPage } from './pages/FaqPage';
-import { AdminPage } from './pages/AdminPage';
-import { ChatPage } from './pages/ChatPage';
+import { AuthProvider } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { Auth } from './components/Auth';
+import { HomePage } from './pages/HomePage';
+import { AdminPage } from './pages/AdminPage';
+import { ProfilePage } from './pages/ProfilePage';
 
 function App() {
-  useEffect(() => {
-    const requestNotificationPermission = async () => {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        console.log('Уведомления разрешены');
-      } else {
-        console.log('Уведомления отклонены');
-      }
-    };
-
-    requestNotificationPermission();
-  }, []);
-
   return (
-    <Router basename="/">
-      <div className="min-h-screen bg-gray-100 flex flex-col">
+    <AuthProvider>
+      <Router>
         <Navbar />
-        <main className="flex-1">
-          <Routes>
-            <Route path="/" element={<TicketsPage />} />
-            <Route path="/faq" element={<FaqPage />} />
-            <Route path="/admin" element={<AdminPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            {/* Редирект для несуществующих путей */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-        <Footer />
-        <ToastContainer />
-      </div>
-    </Router>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { TicketForm } from '../components/TicketForm';
 import { RecentTickets } from '../components/RecentTickets';
 import { UsefulLinks } from '../components/UsefulLinks';
+<<<<<<< HEAD
 import { Upload, FileUp, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 
@@ -19,6 +20,9 @@ interface YandexDiskUploadResponse {
 }
 
 const YANDEX_TOKEN = "y0__xDF1u-PARjblgMg24y4khIlBeidpFbnhxA4Vw55vy3IvfvjPQ";
+=======
+import { Link } from 'react-router-dom';
+>>>>>>> 12a76cf63a236c98a3b0b4e7b23be430f6187efb
 
 export function HomePage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -163,9 +167,6 @@ export function HomePage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Добро пожаловать на главную страницу!</h1>
-      <p className="mt-4">Здесь вы можете найти информацию о тикетах, FAQ и чате.</p>
-
       <div className="grid md:grid-cols-3 gap-8 mt-8">
         <div className="md:col-span-2 space-y-8">
           <div>

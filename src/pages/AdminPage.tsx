@@ -9,6 +9,19 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { supabase } from '../utils/supabase';
 import 'react-calendar/dist/Calendar.css';
+<<<<<<< HEAD
+=======
+import type { ChangeEvent, FormEvent } from 'react';
+import type { Value } from 'react-calendar';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { TicketForm } from '../components/TicketForm';
+
+interface CalendarTileProperties {
+  date: Date;
+  view: string;
+}
+>>>>>>> 12a76cf63a236c98a3b0b4e7b23be430f6187efb
 
 // Типы данных
 interface Note {
@@ -143,7 +156,43 @@ const reducer = (state: State, action: Action): State => {
 };
 
 export function AdminPage() {
+<<<<<<< HEAD
   const [state, dispatch] = useReducer(reducer, initialState);
+=======
+  const { user, isAuthenticated } = useAuth();
+  const [isAuthenticatedLocal, setIsAuthenticatedLocal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [isAddingLink, setIsAddingLink] = useState(false);
+  const [isAddingFaq, setIsAddingFaq] = useState(false);
+  const [isAddingPrinter, setIsAddingPrinter] = useState(false);
+  const [newNote, setNewNote] = useState({ title: '', content: '' });
+  const [newLink, setNewLink] = useState({ title: '', url: '' });
+  const [newFaq, setNewFaq] = useState({ question: '', answer: '' });
+  const [newPrinter, setNewPrinter] = useState({
+    model: '',
+    location: '',
+    toner_model: '',
+    cartridge_model: '',
+    last_toner_change: new Date().toISOString().split('T')[0]
+  });
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [editingLink, setEditingLink] = useState<string | null>(null);
+  const [editingFaq, setEditingFaq] = useState<string | null>(null);
+  const [editingPrinter, setEditingPrinter] = useState<string | null>(null);
+  const [expandedNotes, setExpandedNotes] = useState<string[]>([]);
+  const [error, setError] = useState('');
+  const [links, setLinks] = useState<Link[]>([]);
+  const [faqItems, setFaqItems] = useState<FaqItem[]>([]);
+  const [printers, setPrinters] = useState<Printer[]>([]);
+  const [activeTab, setActiveTab] = useState<'notes' | 'links' | 'faq' | 'printers' | 'tickets'>('notes');
+  const [selectedPrinter, setSelectedPrinter] = useState<string | null>(null);
+  const [tonerChangeDates, setTonerChangeDates] = useState<Record<string, Date[]>>({});
+  const [tickets, setTickets] = useState<AdminTicket[]>([]);
+  const [newComment, setNewComment] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+>>>>>>> 12a76cf63a236c98a3b0b4e7b23be430f6187efb
 
   const fetchData = useCallback(async (table: string, setter: string, orderBy: string) => {
     dispatch({ type: 'SET_LOADING', payload: { key: table, value: true } });
@@ -169,6 +218,35 @@ export function AdminPage() {
 
     if (ticketsError) {
       console.error('Error fetching tickets:', ticketsError);
+<<<<<<< HEAD
+=======
+      return;
+    }
+
+    const ticketsWithComments = await Promise.all(
+      (ticketsData || []).map(async (ticket) => {
+        const { data: commentsData } = await supabase
+          .from('ticket_comments')
+          .select('*')
+          .eq('ticket_id', ticket.id)
+          .order('created_at', { ascending: true });
+
+        return {
+          ...ticket,
+          comments: commentsData || []
+        };
+      })
+    );
+
+    setTickets(ticketsWithComments);
+  };
+
+  const handleLogin = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (password === '12qwaszx') {
+      setIsAuthenticatedLocal(true);
+      setError('');
+>>>>>>> 12a76cf63a236c98a3b0b4e7b23be430f6187efb
     } else {
       const ticketsWithComments = await Promise.all(
         (ticketsData || []).map(async (ticket) => {
@@ -545,6 +623,7 @@ export function AdminPage() {
     }
   }, [state, fetchData, fetchTickets, handleDelete, handleTonerChange]);
 
+<<<<<<< HEAD
   if (!state.isAuthenticated) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -572,6 +651,77 @@ export function AdminPage() {
         </div>
       </div>
     );
+=======
+    fetchPrinters();
+  };
+
+  const handleToggleTicketStatus = async (ticketId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+    
+    const { error } = await supabase
+      .from('tickets')
+      .update({ status: newStatus })
+      .eq('id', ticketId);
+
+    if (error) {
+      console.error('Error updating ticket status:', error);
+      return;
+    }
+
+    setTickets(prev => prev.map(ticket => 
+      ticket.id === ticketId 
+        ? { ...ticket, status: newStatus }
+        : ticket
+    ));
+  };
+
+  const handleUpdateTonerChange = async (id: string, date?: Date) => {
+    const newDate = date || new Date();
+    
+    const { error } = await supabase
+      .from('printers')
+      .update({
+        last_toner_change: newDate.toISOString()
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating toner change date:', error);
+      return;
+    }
+
+    setTonerChangeDates(prev => ({
+      ...prev,
+      [id]: [...(prev[id] || []), newDate]
+    }));
+
+    fetchPrinters();
+  };
+
+  const toggleNoteExpansion = (id: string) => {
+    setExpandedNotes((prev: string[]) =>
+      prev.includes(id)
+        ? prev.filter((noteId: string) => noteId !== id)
+        : [...prev, id]
+    );
+  };
+
+  const getTileContent = ({ date, view }: CalendarTileProperties) => {
+    if (view !== 'month' || !selectedPrinter) return null;
+
+    const printerDates = tonerChangeDates[selectedPrinter] || [];
+    const hasChange = printerDates.some(changeDate => 
+      format(changeDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+    );
+
+    return hasChange ? (
+      <div className="w-2 h-2 bg-green-500 rounded-full mx-auto mt-1" />
+    ) : null;
+  };
+
+  if (!isAuthenticated || (user.email !== 'bstkt7@gmail.com')) {
+    return <Navigate to="/auth" replace />;
+>>>>>>> 12a76cf63a236c98a3b0b4e7b23be430f6187efb
   }
 
   return (
@@ -739,7 +889,12 @@ export function AdminPage() {
             </button>
           </div>
         </div>
+<<<<<<< HEAD
       )}
+=======
+      </div>
+      <TicketForm />
+>>>>>>> 12a76cf63a236c98a3b0b4e7b23be430f6187efb
     </div>
   );
 }

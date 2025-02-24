@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { supabase } from '../utils/supabase';
 import 'react-calendar/dist/Calendar.css';
+import * as XLSX from 'xlsx';
 
 // Типы данных
 interface Note {
@@ -296,6 +297,26 @@ export function AdminPage() {
     (state.currentPage - 1) * ticketsPerPage,
     state.currentPage * ticketsPerPage
   );
+
+  const exportToExcel = () => {
+    const data = state.tickets.map(ticket => ({
+      Дата: new Date(ticket.created_at).toLocaleDateString('ru-RU', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      Тема: ticket.title,
+      Описание: ticket.description,
+      Статус: ticket.status === 'completed' ? 'Выполнено' : 'В ожидании'
+    }));
+  
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Заявки');
+    XLSX.writeFile(workbook, 'Заявки.xlsx');
+  };
 
   const renderTabContent = useMemo(() => {
     switch (state.activeTab) {
@@ -608,6 +629,15 @@ export function AdminPage() {
         case 'calendar':
           return (
             <div className="space-y-4">
+              <div className="flex justify-end">
+                <button
+                  onClick={exportToExcel}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  <Save size={20} />
+                  Экспорт в XLSX
+                </button>
+              </div>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-gray-100">
@@ -643,6 +673,7 @@ export function AdminPage() {
               )}
             </div>
           );
+          
       default:
         return null;
     }

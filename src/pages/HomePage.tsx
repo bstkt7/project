@@ -2,7 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { TicketForm } from '../components/TicketForm';
 import { RecentTickets } from '../components/RecentTickets';
 import { UsefulLinks } from '../components/UsefulLinks';
-import { Link } from 'react-router-dom';
+import { Upload, FileUp, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
+
+interface UploadedFile {
+  name: string;
+  size: number;
+  type: string;
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  progress: number;
+  error?: string;
+}
+
+interface YandexDiskUploadResponse {
+  href: string;
+}
+
+const YANDEX_TOKEN = "y0__xDF1u-PARjblgMg24y4khIlBeidpFbnhxA4Vw55vy3IvfvjPQ";
 
 export function HomePage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
